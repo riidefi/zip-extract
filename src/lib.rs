@@ -24,8 +24,6 @@
 //!
 //! The default is `bzip2` and `deflate`.
 
-#![forbid(unsafe_code)]
-
 #[macro_use]
 extern crate log;
 
@@ -36,6 +34,9 @@ use std::io::{Read, Seek};
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{fs, io};
 use thiserror::Error;
+
+use core::ffi::c_char;
+use std::ffi::CString;
 
 /// Re-export of zip's error type, for convenience.
 ///
@@ -78,6 +79,7 @@ pub fn extract<S: Read + Seek>(
     source: S,
     target_dir: &Path,
     strip_toplevel: bool,
+  write_file: unsafe extern "C" fn(*const c_char, *const u8, u32)
 ) -> Result<(), ZipExtractError> {
     if !target_dir.exists() {
         fs::create_dir(&target_dir)?;
@@ -89,7 +91,7 @@ pub fn extract<S: Read + Seek>(
 
     debug!("Extracting to {}", target_dir.to_string_lossy());
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
+        let file = archive.by_index(i)?;
         let mut relative_path = file.mangled_name();
 
         if do_strip_toplevel {
@@ -119,24 +121,34 @@ pub fn extract<S: Read + Seek>(
         outpath.push(relative_path);
 
         trace!(
-            "Extracting {} to {}",
+            "Extracting2 {} to {}",
             file.name(),
             outpath.to_string_lossy()
         );
         if file.name().ends_with('/') {
+            trace!("Creating dir");
             fs::create_dir_all(&outpath)?;
+            #[cfg(unix)]
+            drop(file);
         } else {
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
                     fs::create_dir_all(&p)?;
                 }
             }
-            let mut outfile = fs::File::create(&outpath)?;
-            io::copy(&mut file, &mut outfile)?;
+            trace!("Calling callback");
+            let bytes: Vec<u8> = file.bytes().map(|x| x.unwrap()).collect::<Vec<_>>();
+            let path_str_c = CString::new(outpath.as_os_str().to_str().unwrap()).unwrap();
+
+            unsafe {
+                write_file(path_str_c.as_ptr(), bytes.as_ptr(), bytes.len() as u32);
+            }
         }
 
         #[cfg(unix)]
-        set_unix_mode(&file, &outpath)?;
+        let file2 = archive.by_index(i)?;
+        #[cfg(unix)]
+        set_unix_mode(&file2, &outpath)?;
     }
 
     debug!("Extracted {} files", archive.len());
