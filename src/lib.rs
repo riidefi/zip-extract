@@ -27,6 +27,8 @@
 #[macro_use]
 extern crate log;
 
+extern crate write_to_open_file_trick;
+
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
@@ -34,9 +36,6 @@ use std::io::{Read, Seek};
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{fs, io};
 use thiserror::Error;
-
-use core::ffi::c_char;
-use std::ffi::CString;
 
 /// Re-export of zip's error type, for convenience.
 ///
@@ -79,7 +78,6 @@ pub fn extract<S: Read + Seek>(
     source: S,
     target_dir: &Path,
     strip_toplevel: bool,
-  write_file: unsafe extern "C" fn(*const c_char, *const u8, u32)
 ) -> Result<(), ZipExtractError> {
     if !target_dir.exists() {
         fs::create_dir(&target_dir)?;
@@ -91,7 +89,7 @@ pub fn extract<S: Read + Seek>(
 
     debug!("Extracting to {}", target_dir.to_string_lossy());
     for i in 0..archive.len() {
-        let file = archive.by_index(i)?;
+        let mut file = archive.by_index(i)?;
         let mut relative_path = file.mangled_name();
 
         if do_strip_toplevel {
@@ -137,12 +135,21 @@ pub fn extract<S: Read + Seek>(
                 }
             }
             trace!("Calling callback");
-            let bytes: Vec<u8> = file.bytes().map(|x| x.unwrap()).collect::<Vec<_>>();
-            let path_str_c = CString::new(outpath.as_os_str().to_str().unwrap()).unwrap();
-
-            unsafe {
-                write_file(path_str_c.as_ptr(), bytes.as_ptr(), bytes.len() as u32);
-            }
+            let outpath_str = match outpath.to_str() {
+                Some(s) => s,
+                None => {
+                    panic!("Could not convert path to string");
+                }
+            };
+            let mut buffer = Vec::new();
+            match file.read_to_end(&mut buffer) {
+                Ok(_) => {
+                    write_to_open_file_trick::write_to_open_file(outpath_str, &buffer);
+                }
+                Err(e) => {
+                    panic!("Failed to read zip file: {:?}", e);
+                }
+            };
         }
 
         #[cfg(unix)]
