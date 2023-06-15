@@ -127,7 +127,7 @@ pub fn extract<S: Read + Seek>(
             trace!("Creating dir");
             fs::create_dir_all(&outpath)?;
             #[cfg(unix)]
-            drop(file);
+            set_unix_mode(&file, &outpath)?;
         } else {
             if let Some(p) = outpath.parent() {
                 if !p.exists() {
@@ -151,11 +151,6 @@ pub fn extract<S: Read + Seek>(
                 }
             };
         }
-
-        #[cfg(unix)]
-        let file2 = archive.by_index(i)?;
-        #[cfg(unix)]
-        set_unix_mode(&file2, &outpath)?;
     }
 
     debug!("Extracted {} files", archive.len());
