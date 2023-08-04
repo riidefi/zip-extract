@@ -146,6 +146,7 @@ pub fn extract<S: Read + Seek>(
                     fs::create_dir_all(old_file_dir).expect("Failed to create temporary directory");
                     let old_file_path = Path::new(old_file_dir).join(Path::new(outpath_str).file_name().unwrap());
 
+                    let _ = fs::remove_file(&old_file_path);
                     let _ = fs::rename(&outpath_str, &old_file_path);
                     let mut new_file = match fs::File::create(&outpath_str) {
                         Ok(file) => file,
