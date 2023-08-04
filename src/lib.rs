@@ -142,18 +142,19 @@ pub fn extract<S: Read + Seek>(
             let mut buffer = Vec::new();
             match file.read_to_end(&mut buffer) {
                 Ok(_) => {
-                    let old_file = format!("{}.old", outpath_str);
-                    if fs::rename(&outpath_str, &old_file).is_ok() {
-                        let mut new_file = match fs::File::create(&outpath_str) {
-                            Ok(file) => file,
-                            Err(e) => panic!("Failed to create new file: {:?}", e),
-                        };
-                        if new_file.write_all(&buffer).is_err() {
-                            panic!("Failed to write to new file.");
-                        }
+                    let old_file_dir = "updater_tmp";
+                    fs::create_dir_all(old_file_dir).expect("Failed to create temporary directory");
+                    let old_file_path = Path::new(old_file_dir).join(Path::new(outpath_str).file_name().unwrap());
 
-                        let _ = fs::remove_file(old_file); // We don't care if this fails
+                    let _ = fs::rename(&outpath_str, &old_file_path);
+                    let mut new_file = match fs::File::create(&outpath_str) {
+                        Ok(file) => file,
+                        Err(e) => panic!("Failed to create new file: {:?}", e),
+                    };
+                    if new_file.write_all(&buffer).is_err() {
+                        panic!("Failed to write to new file.");
                     }
+                    let _ = fs::remove_file(old_file_path);
                 }
                 Err(e) => {
                     panic!("Failed to read zip file: {:?}", e);
