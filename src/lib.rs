@@ -27,12 +27,10 @@
 #[macro_use]
 extern crate log;
 
-extern crate write_to_open_file_trick;
-
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-use std::io::{Read, Seek};
+use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf, StripPrefixError};
 use std::{fs, io};
 use thiserror::Error;
@@ -144,7 +142,18 @@ pub fn extract<S: Read + Seek>(
             let mut buffer = Vec::new();
             match file.read_to_end(&mut buffer) {
                 Ok(_) => {
-                    write_to_open_file_trick::write_to_open_file(outpath_str, &buffer);
+                    let old_file = format!("{}.old", outpath_str);
+                    if fs::rename(&outpath_str, &old_file).is_ok() {
+                        let mut new_file = match fs::File::create(&outpath_str) {
+                            Ok(file) => file,
+                            Err(e) => panic!("Failed to create new file: {:?}", e),
+                        };
+                        if new_file.write_all(&buffer).is_err() {
+                            panic!("Failed to write to new file.");
+                        }
+
+                        let _ = fs::remove_file(old_file); // We don't care if this fails
+                    }
                 }
                 Err(e) => {
                     panic!("Failed to read zip file: {:?}", e);
