@@ -11,15 +11,13 @@ categories = ["compression"]
 
 [features]
 "deflate" = ["zip/deflate"]
-"deflate-miniz" = ["zip/deflate-miniz"]
-"default-zlib" = ["zip/deflate-zlib"]
 "bzip2" = ["zip/bzip2"]
 "default" = ["bzip2", "deflate"]
 
 [dependencies]
 log = "0.4.14"
-zip = "0.5.13"
-thiserror = "1.0"
+zip = "4.3.0"
+thiserror = "2.0.12"
 
 [dev-dependencies]
 cute-log = { version = "2.0.7", default_features = false }

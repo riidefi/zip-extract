@@ -198,7 +198,7 @@ fn has_toplevel<S: Read + Seek>(
 }
 
 #[cfg(unix)]
-fn set_unix_mode(file: &zip::read::ZipFile, outpath: &Path) -> io::Result<()> {
+fn set_unix_mode<R: Read + Seek>(file: &zip::read::ZipFile<'_, R>, outpath: &Path) -> io::Result<()> {
     if let Some(m) = file.unix_mode() {
         fs::set_permissions(&outpath, PermissionsExt::from_mode(m))?
     }
